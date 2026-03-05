@@ -29,8 +29,31 @@ from ai_job_matcher import score_candidate
 st.set_page_config(page_title="HoodaAgents AI Hiring Engine", layout="centered")
 st.title("HoodaAgents AI Hiring Engine")
 
+st.markdown(
+"""
+### AI Resume Intelligence Engine
+
+Upload a resume and compare it against a job description.  
+The system extracts structured candidate information and evaluates job fit using an AI model.
+"""
+)
+
 resume = st.file_uploader("Upload Resume", type=["pdf"])
 job_desc = st.text_area("Paste Job Description", height=140)
+
+if st.button("Load Sample Job Description"):
+    job_desc = """
+Data Engineer
+
+Responsibilities:
+- Build ETL pipelines
+- Work with SQL, Python, and cloud data platforms
+- Build dashboards with Power BI
+"""
+
+st.markdown(
+"[View Source Code on GitHub](https://github.com/yashhooda1/hooda-hiring-ai)"
+)
 
 if resume is not None:
 
