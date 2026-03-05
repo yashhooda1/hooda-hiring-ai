@@ -7,6 +7,9 @@ This tool parses resume PDFs, extracts structured candidate information using a 
 Live App:
 https://jnopbakdpluthfpwq9whli.streamlit.app/
 
+YouTube Demo:
+https://www.youtube.com/watch?v=4KTblUUGv4I
+
 ---
 
 ## Features
