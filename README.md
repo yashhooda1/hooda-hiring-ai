@@ -5,7 +5,7 @@ An AI-powered resume intelligence and hiring assistant that analyzes resumes and
 This tool parses resume PDFs, extracts structured candidate information using a Large Language Model (LLM), and performs AI-powered job matching.
 
 Live App:
-[(https://hoodahiring.ai/)](hoodahiring.ai)
+[(https://hoodahiring.ai/)](https://hoodahiring.ai/)
 
 YouTube Demo:
 https://www.youtube.com/watch?v=4KTblUUGv4I
