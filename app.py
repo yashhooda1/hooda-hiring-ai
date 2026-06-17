@@ -18,8 +18,26 @@ if resume and job_desc:
 
     st.write("Candidate Match Score:", score) '''
 
-import json
 import streamlit as st
+
+st.set_page_config(
+    page_title="HoodaAgents AI Hiring Engine",
+    page_icon="🤖",
+    layout="wide",
+)
+
+# SEO meta injection
+st.markdown("""
+    <head>
+        <meta name="description" content="AI-powered resume intelligence engine. Upload a resume and get instant candidate fit analysis against any job description.">
+        <meta name="keywords" content="AI hiring, resume parser, job matching, AI recruiting, candidate intelligence">
+        <meta property="og:title" content="HoodaAgents AI Hiring Engine">
+        <meta property="og:description" content="AI-powered resume intelligence and job fit analysis.">
+        <meta property="og:url" content="https://hoodahiring.ai">
+    </head>
+""", unsafe_allow_html=True)
+
+import json
 
 from resume_parser import parse_resume
 from skill_extractor import extract_resume_intelligence
