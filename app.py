@@ -43,6 +43,10 @@ from resume_parser import parse_resume
 from skill_extractor import extract_resume_intelligence
 from ai_job_matcher import score_candidate
 
+import os
+from resume_builder import extract_text, detect_font, build_resume_docx, build_cover_letter_docx
+from resume_generator import generate_tailored_resume, generate_cover_letter
+
 
 st.set_page_config(page_title="HoodaAgents AI Hiring Engine", layout="centered")
 st.title("HoodaAgents AI Hiring Engine")
@@ -56,7 +60,7 @@ The system extracts structured candidate information and evaluates job fit using
 """
 )
 
-resume = st.file_uploader("Upload Resume", type=["pdf"])
+resume = st.file_uploader("Upload Resume", type=["pdf", "docx"])
 job_desc = st.text_area("Paste Job Description", height=140)
 
 if st.button("Load Sample Job Description"):
@@ -76,12 +80,12 @@ st.markdown(
 if resume is not None:
 
     # Save uploaded resume safely
-    tmp_path = "resume_uploaded.pdf"
+    tmp_path = "resume_uploaded" + os.path.splitext(resume.name)[1].lower()
     with open(tmp_path, "wb") as f:
         f.write(resume.getbuffer())
 
     # Extract text
-    resume_text = parse_resume(tmp_path)
+    resume_text = extract_text(tmp_path)
 
     if not resume_text or len(resume_text.strip()) == 0:
         st.error("Could not extract text from this PDF. Try exporting it as a text-based PDF (not scanned).")
@@ -179,6 +183,40 @@ if resume is not None:
             
         except Exception as e:
             st.error(f"AI match scoring failed: {e}")
+
+        # ---- Tailored Resume + Cover Letter generator ----
+        st.divider()
+        st.subheader("Tailored Resume + Cover Letter")
+
+        if tmp_path.lower().endswith(".docx"):
+            st.caption("DOCX upload detected - the original font is preserved exactly.")
+        else:
+            st.caption("PDF upload - a clean ATS resume is generated in the closest recoverable font.")
+
+        if st.button("Generate Tailored Documents"):
+            try:
+                with st.spinner("Tailoring your resume to the job description..."):
+                    tailored = generate_tailored_resume(profile, resume_text, job_desc)
+                    cover = generate_cover_letter(profile, resume_text, job_desc)
+                    font_name = detect_font(tmp_path)
+                    st.session_state["gen_resume"] = build_resume_docx(tailored, font_name)
+                    st.session_state["gen_cover"] = build_cover_letter_docx(cover, font_name)
+                    st.session_state["gen_font"] = font_name
+                    st.session_state["gen_tailored"] = tailored
+            except Exception as e:
+                st.error(f"Generation failed: {e}")
+
+        if st.session_state.get("gen_resume"):
+            st.success(f"Documents ready. Font used: {st.session_state['gen_font']}")
+            docx_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            st.download_button("Download Tailored Resume (.docx)",
+                               data=st.session_state["gen_resume"],
+                               file_name="tailored_resume.docx", mime=docx_mime)
+            st.download_button("Download Cover Letter (.docx)",
+                               data=st.session_state["gen_cover"],
+                               file_name="cover_letter.docx", mime=docx_mime)
+            with st.expander("Preview tailored resume content"):
+                st.json(st.session_state["gen_tailored"])
 
 else:
     st.info("Upload a resume PDF to begin.")
