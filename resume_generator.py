@@ -2,7 +2,7 @@
 resume_generator.py — LLM content generation for HoodaAgents.
 
 Matches the existing OpenAI Responses API pattern used across the repo
-(client.responses.create(model="gpt-4.1-mini", input=prompt) -> .output_text).
+(client.responses.create with the model from OPENAI_MODEL -> .output_text).
 
 Two functions:
   - generate_tailored_resume(profile, resume_text, job_desc) -> structured dict
@@ -19,7 +19,7 @@ import json
 from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = "gpt-4.1-mini"
+MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
 
 def _extract_json(text):
