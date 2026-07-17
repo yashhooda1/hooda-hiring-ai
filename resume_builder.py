@@ -83,67 +83,98 @@ def _heading(doc, text, font_name):
     return p
 
 
+def _skills_lines(skills):
+    """Yield (label, text). dict -> grouped lines; list/str -> single line (label None)."""
+    if isinstance(skills, dict):
+        for cat, vals in skills.items():
+            if vals:
+                yield cat, (", ".join(vals) if isinstance(vals, list) else str(vals))
+    elif isinstance(skills, list):
+        if skills:
+            yield None, ", ".join(skills)
+    elif skills:
+        yield None, str(skills)
+
+
 def build_resume_docx(data, font_name, out=None):
-    """data: structured dict (see schema in resume_generator). Returns bytes if out is None."""
+    """data: enriched structured dict (see schema in resume_generator). Bytes if out is None."""
     doc = Document()
     _apply_base_font(doc, font_name)
+    doc.styles["Normal"].font.size = Pt(9.5)  # compact, aims for one page
     for section in doc.sections:
-        section.top_margin = section.bottom_margin = Pt(36)
-        section.left_margin = section.right_margin = Pt(50)
+        section.top_margin = section.bottom_margin = Pt(30)
+        section.left_margin = section.right_margin = Pt(44)
 
-    # Name
-    name_p = doc.add_paragraph()
-    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    nr = name_p.add_run(data.get("name", ""))
-    nr.bold = True
-    nr.font.name = font_name
-    nr.font.size = Pt(18)
+    def center(text, size, bold=False, italic=False):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_after = Pt(1)
+        r = p.add_run(text)
+        r.bold = bold; r.italic = italic
+        r.font.name = font_name; r.font.size = Pt(size)
 
-    # Contact line
+    center(data.get("name", ""), 18, bold=True)
+    if data.get("tagline"):
+        center(data["tagline"], 10.5, bold=True)
     if data.get("contact"):
-        c = doc.add_paragraph()
-        c.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        cr = c.add_run(data["contact"])
-        cr.font.name = font_name
-        cr.font.size = Pt(9.5)
+        center(data["contact"], 9)
+    if data.get("links"):
+        center(data["links"], 9)
+    if data.get("work_authorization"):
+        center(data["work_authorization"], 8.5, italic=True)
 
     if data.get("summary"):
-        _heading(doc, "Professional Summary", font_name)
+        _heading(doc, "Summary", font_name)
         doc.add_paragraph(data["summary"])
 
     if data.get("skills"):
-        _heading(doc, "Skills", font_name)
-        skills = data["skills"]
-        text = ", ".join(skills) if isinstance(skills, list) else str(skills)
-        doc.add_paragraph(text)
+        _heading(doc, "Technical Skills", font_name)
+        for label, txt in _skills_lines(data["skills"]):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(1)
+            if label:
+                p.add_run(f"{label}  ").bold = True
+            p.add_run(txt)
 
     if data.get("experience"):
         _heading(doc, "Experience", font_name)
         for job in data["experience"]:
             h = doc.add_paragraph()
-            left = h.add_run(f"{job.get('title','')} — {job.get('company','')}")
-            left.bold = True
-            if job.get("dates"):
-                h.add_run(f"   ({job['dates']})").italic = True
+            h.paragraph_format.space_after = Pt(0)
+            h.add_run(f"{job.get('title','')} — {job.get('company','')}").bold = True
+            meta = " | ".join(x for x in [job.get("location", ""), job.get("dates", "")] if x)
+            if meta:
+                h.add_run(f"   {meta}").italic = True
             for b in job.get("bullets", []):
                 doc.add_paragraph(b, style="List Bullet")
 
     if data.get("projects"):
-        _heading(doc, "Projects", font_name)
+        _heading(doc, "Selected Projects", font_name)
         for pr in data["projects"]:
             h = doc.add_paragraph()
-            h.add_run(pr.get("name", "")).bold = True
+            h.paragraph_format.space_after = Pt(0)
+            title = pr.get("name", "")
+            if pr.get("subtitle"):
+                title += f" — {pr['subtitle']}"
+            h.add_run(title).bold = True
+            if pr.get("tech"):
+                h.add_run(f"   {pr['tech']}").italic = True
             for b in pr.get("bullets", []):
                 doc.add_paragraph(b, style="List Bullet")
 
-    if data.get("education"):
-        _heading(doc, "Education", font_name)
-        for ed in data["education"]:
+    if data.get("education") or data.get("certifications"):
+        _heading(doc, "Education & Certifications", font_name)
+        for ed in data.get("education", []):
             e = doc.add_paragraph()
+            e.paragraph_format.space_after = Pt(1)
             e.add_run(ed.get("degree", "")).bold = True
-            tail = ", ".join(x for x in [ed.get("school", ""), ed.get("dates", "")] if x)
+            tail = ", ".join(x for x in [ed.get("school", ""), ed.get("location", ""), ed.get("dates", "")] if x)
             if tail:
                 e.add_run(f" — {tail}")
+        certs = data.get("certifications")
+        if certs:
+            text = "  ·  ".join(certs) if isinstance(certs, list) else str(certs)
+            doc.add_paragraph(text)
 
     return _save(doc, out)
 
@@ -183,64 +214,89 @@ def build_resume_pdf(data, font_name, out=None):
     from fpdf import FPDF
     fam = _pdf_family(font_name)
     pdf = FPDF(format="Letter")
-    pdf.set_auto_page_break(auto=True, margin=14)
-    pdf.set_margins(18, 14, 18)
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.set_margins(16, 12, 16)
     pdf.add_page()
     W = pdf.w - pdf.l_margin - pdf.r_margin
 
-    pdf.set_font(fam, "B", 18)
-    pdf.multi_cell(W, 8, _pdf_safe(data.get("name", "")), align="C")
+    def center(text, size, style=""):
+        pdf.set_font(fam, style, size)
+        pdf.multi_cell(W, size * 0.42 + 1, _pdf_safe(text), align="C")
+
+    center(data.get("name", ""), 18, "B")
+    if data.get("tagline"):
+        center(data["tagline"], 10.5, "B")
     if data.get("contact"):
-        pdf.set_font(fam, "", 9)
-        pdf.multi_cell(W, 5, _pdf_safe(data["contact"]), align="C")
+        center(data["contact"], 8.5)
+    if data.get("links"):
+        center(data["links"], 8.5)
+    if data.get("work_authorization"):
+        center(data["work_authorization"], 8, "I")
 
     def heading(t):
-        pdf.ln(2.5)
-        pdf.set_font(fam, "B", 11.5)
-        pdf.multi_cell(W, 6, _pdf_safe(t.upper()))
+        pdf.ln(1.8)
+        pdf.set_font(fam, "B", 11)
+        pdf.multi_cell(W, 5.5, _pdf_safe(t.upper()))
         y = pdf.get_y()
         pdf.set_draw_color(170, 170, 170)
         pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
-        pdf.ln(1)
+        pdf.ln(0.8)
 
-    def body(t, size=10.5):
+    def body(t, size=9.5):
         pdf.set_font(fam, "", size)
-        pdf.multi_cell(W, 5, _pdf_safe(t))
+        pdf.multi_cell(W, 4.4, _pdf_safe(t))
 
     def bullet(t):
-        pdf.set_font(fam, "", 10.5)
-        pdf.multi_cell(W, 5, _pdf_safe("- " + t))
+        pdf.set_font(fam, "", 9.5)
+        pdf.multi_cell(W, 4.4, _pdf_safe("- " + t))
 
     if data.get("summary"):
-        heading("Professional Summary"); body(data["summary"])
+        heading("Summary"); body(data["summary"])
+
     if data.get("skills"):
-        heading("Skills")
-        sk = data["skills"]
-        body(", ".join(sk) if isinstance(sk, list) else str(sk))
+        heading("Technical Skills")
+        for label, txt in _skills_lines(data["skills"]):
+            pdf.set_font(fam, "B", 9.5)
+            if label:
+                pdf.write(4.4, _pdf_safe(f"{label}  "))
+            pdf.set_font(fam, "", 9.5)
+            pdf.write(4.4, _pdf_safe(txt))
+            pdf.ln(4.4)
+
     if data.get("experience"):
         heading("Experience")
         for job in data["experience"]:
-            pdf.set_font(fam, "B", 10.5)
-            dates = job.get("dates", "")
+            pdf.set_font(fam, "B", 9.5)
             line = f"{job.get('title','')} - {job.get('company','')}"
-            pdf.multi_cell(W, 5, _pdf_safe(line + (f"   ({dates})" if dates else "")))
+            meta = " | ".join(x for x in [job.get("location", ""), job.get("dates", "")] if x)
+            pdf.multi_cell(W, 4.6, _pdf_safe(line + (f"   {meta}" if meta else "")))
             for b in job.get("bullets", []):
                 bullet(b)
-            pdf.ln(1)
+            pdf.ln(0.8)
+
     if data.get("projects"):
-        heading("Projects")
+        heading("Selected Projects")
         for pr in data["projects"]:
-            pdf.set_font(fam, "B", 10.5)
-            pdf.multi_cell(W, 5, _pdf_safe(pr.get("name", "")))
+            title = pr.get("name", "")
+            if pr.get("subtitle"):
+                title += f" - {pr['subtitle']}"
+            if pr.get("tech"):
+                title += f"   {pr['tech']}"
+            pdf.set_font(fam, "B", 9.5)
+            pdf.multi_cell(W, 4.6, _pdf_safe(title))
             for b in pr.get("bullets", []):
                 bullet(b)
-            pdf.ln(1)
-    if data.get("education"):
-        heading("Education")
-        for ed in data["education"]:
-            pdf.set_font(fam, "B", 10.5)
-            tail = ", ".join(x for x in [ed.get("school", ""), ed.get("dates", "")] if x)
-            pdf.multi_cell(W, 5, _pdf_safe(ed.get("degree", "") + (f" - {tail}" if tail else "")))
+            pdf.ln(0.8)
+
+    if data.get("education") or data.get("certifications"):
+        heading("Education & Certifications")
+        for ed in data.get("education", []):
+            pdf.set_font(fam, "B", 9.5)
+            tail = ", ".join(x for x in [ed.get("school", ""), ed.get("location", ""), ed.get("dates", "")] if x)
+            pdf.multi_cell(W, 4.6, _pdf_safe(ed.get("degree", "") + (f" - {tail}" if tail else "")))
+        certs = data.get("certifications")
+        if certs:
+            body("  ·  ".join(certs) if isinstance(certs, list) else str(certs))
 
     return _pdf_out(pdf, out)
 
