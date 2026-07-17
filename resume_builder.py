@@ -148,6 +148,170 @@ def build_resume_docx(data, font_name, out=None):
     return _save(doc, out)
 
 
+# ---- PDF builders (fpdf2, no system deps) ----
+_SERIF_HINTS = ("times", "georgia", "garamond", "cambria", "serif", "tex",
+                "computer modern", "cmr", "minion", "palatino", "book antiqua")
+_PUNCT = {"\u2014": "-", "\u2013": "-", "\u2022": "-", "\u25cf": "-", "\u2011": "-",
+          "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+          "\u2026": "...", "\u00a0": " "}
+
+
+def _pdf_family(font_name):
+    n = (font_name or "").lower()
+    return "Times" if any(h in n for h in _SERIF_HINTS) else "Helvetica"
+
+
+def _pdf_safe(s):
+    """Core PDF fonts are latin-1. Convert typographic punctuation to ASCII,
+    keep Western accents (é, ñ, ü...), drop anything else rather than crash."""
+    s = s or ""
+    for k, v in _PUNCT.items():
+        s = s.replace(k, v)
+    return s.encode("latin-1", "ignore").decode("latin-1")
+
+
+def _pdf_out(pdf, out):
+    data = bytes(pdf.output())
+    if out is None:
+        return data
+    with open(out, "wb") as f:
+        f.write(data)
+    return out
+
+
+def build_resume_pdf(data, font_name, out=None):
+    from fpdf import FPDF
+    fam = _pdf_family(font_name)
+    pdf = FPDF(format="Letter")
+    pdf.set_auto_page_break(auto=True, margin=14)
+    pdf.set_margins(18, 14, 18)
+    pdf.add_page()
+    W = pdf.w - pdf.l_margin - pdf.r_margin
+
+    pdf.set_font(fam, "B", 18)
+    pdf.multi_cell(W, 8, _pdf_safe(data.get("name", "")), align="C")
+    if data.get("contact"):
+        pdf.set_font(fam, "", 9)
+        pdf.multi_cell(W, 5, _pdf_safe(data["contact"]), align="C")
+
+    def heading(t):
+        pdf.ln(2.5)
+        pdf.set_font(fam, "B", 11.5)
+        pdf.multi_cell(W, 6, _pdf_safe(t.upper()))
+        y = pdf.get_y()
+        pdf.set_draw_color(170, 170, 170)
+        pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
+        pdf.ln(1)
+
+    def body(t, size=10.5):
+        pdf.set_font(fam, "", size)
+        pdf.multi_cell(W, 5, _pdf_safe(t))
+
+    def bullet(t):
+        pdf.set_font(fam, "", 10.5)
+        pdf.multi_cell(W, 5, _pdf_safe("- " + t))
+
+    if data.get("summary"):
+        heading("Professional Summary"); body(data["summary"])
+    if data.get("skills"):
+        heading("Skills")
+        sk = data["skills"]
+        body(", ".join(sk) if isinstance(sk, list) else str(sk))
+    if data.get("experience"):
+        heading("Experience")
+        for job in data["experience"]:
+            pdf.set_font(fam, "B", 10.5)
+            dates = job.get("dates", "")
+            line = f"{job.get('title','')} - {job.get('company','')}"
+            pdf.multi_cell(W, 5, _pdf_safe(line + (f"   ({dates})" if dates else "")))
+            for b in job.get("bullets", []):
+                bullet(b)
+            pdf.ln(1)
+    if data.get("projects"):
+        heading("Projects")
+        for pr in data["projects"]:
+            pdf.set_font(fam, "B", 10.5)
+            pdf.multi_cell(W, 5, _pdf_safe(pr.get("name", "")))
+            for b in pr.get("bullets", []):
+                bullet(b)
+            pdf.ln(1)
+    if data.get("education"):
+        heading("Education")
+        for ed in data["education"]:
+            pdf.set_font(fam, "B", 10.5)
+            tail = ", ".join(x for x in [ed.get("school", ""), ed.get("dates", "")] if x)
+            pdf.multi_cell(W, 5, _pdf_safe(ed.get("degree", "") + (f" - {tail}" if tail else "")))
+
+    return _pdf_out(pdf, out)
+
+
+def build_cover_letter_pdf(body_text, font_name, out=None):
+    from fpdf import FPDF
+    fam = _pdf_family(font_name)
+    pdf = FPDF(format="Letter")
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_margins(25, 20, 25)
+    pdf.add_page()
+    W = pdf.w - pdf.l_margin - pdf.r_margin
+    pdf.set_font(fam, "", 11)
+    for para in body_text.split("\n\n"):
+        para = para.strip()
+        if para:
+            pdf.multi_cell(W, 6, _pdf_safe(para))
+            pdf.ln(3)
+    return _pdf_out(pdf, out)
+
+
+# ---- Faithful DOCX -> PDF via LibreOffice (exact render; needs soffice installed) ----
+import os
+import shutil
+import subprocess
+import tempfile
+
+
+def libreoffice_available():
+    return shutil.which("soffice") is not None or shutil.which("libreoffice") is not None
+
+
+def docx_to_pdf(docx_bytes, out=None):
+    """Convert DOCX bytes to PDF using headless LibreOffice.
+
+    Produces a PDF that matches the DOCX exactly (layout + font, provided the
+    font — or a metric-compatible substitute — is installed in the container).
+    Raises RuntimeError if soffice is unavailable or conversion fails; callers
+    should fall back to the fpdf2 builder.
+    """
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        raise RuntimeError("LibreOffice (soffice) is not installed")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "in.docx")
+        with open(src, "wb") as f:
+            f.write(docx_bytes)
+        # Unique profile dir avoids "another instance is running" locks under concurrency
+        profile = os.path.join(tmp, "profile")
+        cmd = [
+            soffice, "--headless", "--nologo", "--nofirststartwizard",
+            f"-env:UserInstallation=file://{profile}",
+            "--convert-to", "pdf", "--outdir", tmp, src,
+        ]
+        proc = subprocess.run(cmd, capture_output=True, timeout=90)
+        pdf_path = os.path.join(tmp, "in.pdf")
+        if proc.returncode != 0 or not os.path.exists(pdf_path):
+            raise RuntimeError(
+                f"LibreOffice conversion failed: {proc.stderr.decode('utf-8', 'ignore')[:300]}"
+            )
+        with open(pdf_path, "rb") as f:
+            data = f.read()
+
+    if out is None:
+        return data
+    with open(out, "wb") as f:
+        f.write(data)
+    return out
+
+
 def build_cover_letter_docx(body_text, font_name, out=None):
     doc = Document()
     _apply_base_font(doc, font_name)
