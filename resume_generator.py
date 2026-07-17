@@ -1,25 +1,21 @@
 """
 resume_generator.py — LLM content generation for HoodaAgents.
 
-Matches the existing OpenAI Responses API pattern used across the repo
-(client.responses.create with the model from OPENAI_MODEL -> .output_text).
+Provider-agnostic: routes through llm.complete(), so OpenAI or Anthropic/Claude
+can be selected per call via the `provider` argument.
 
 Two functions:
-  - generate_tailored_resume(profile, resume_text, job_desc) -> structured dict
-  - generate_cover_letter(profile, resume_text, job_desc)    -> str
+  - generate_tailored_resume(profile, resume_text, job_desc, provider) -> dict
+  - generate_cover_letter(profile, resume_text, job_desc, provider)    -> str
 
 Guardrail: the model may rephrase, reorder, and surface JD-relevant keywords
 that are TRUTHFULLY supported by the resume. It must not invent employers,
 titles, dates, degrees, or metrics.
 """
 
-import os
 import re
 import json
-from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+import llm
 
 
 def _extract_json(text):
@@ -30,7 +26,7 @@ def _extract_json(text):
     return json.loads(match.group(0))
 
 
-def generate_tailored_resume(profile, resume_text, job_desc):
+def generate_tailored_resume(profile, resume_text, job_desc, provider="openai"):
     prompt = f"""
 You are an expert resume writer optimizing a resume for an ATS and a specific job.
 
@@ -71,11 +67,11 @@ RAW RESUME TEXT:
 JOB DESCRIPTION:
 {job_desc}
 """
-    resp = client.responses.create(model=MODEL, input=prompt)
-    return _extract_json(resp.output_text)
+    raw = llm.complete(prompt, provider=provider)
+    return _extract_json(raw)
 
 
-def generate_cover_letter(profile, resume_text, job_desc):
+def generate_cover_letter(profile, resume_text, job_desc, provider="openai"):
     name = profile.get("name", "the candidate") if isinstance(profile, dict) else "the candidate"
     prompt = f"""
 Write a concise, professional cover letter (about 250-320 words) for {name},
@@ -93,5 +89,4 @@ CANDIDATE PROFILE:
 JOB DESCRIPTION:
 {job_desc}
 """
-    resp = client.responses.create(model=MODEL, input=prompt)
-    return resp.output_text.strip()
+    return llm.complete(prompt, provider=provider).strip()
