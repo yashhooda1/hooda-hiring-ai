@@ -444,6 +444,59 @@ def extract_text(path):
     return text
 
 
+def to_markdown(data):
+    """Render the tailored resume dict as Markdown / plain text for easy copy-paste
+    (e.g. back into a LaTeX master or another editor)."""
+    lines = []
+    if data.get("name"):
+        lines.append(f"# {data['name']}")
+    for key in ("tagline", "contact", "links", "work_authorization"):
+        if data.get(key):
+            lines.append(data[key])
+
+    if data.get("summary"):
+        lines += ["", "## Summary", data["summary"]]
+
+    if data.get("skills"):
+        lines += ["", "## Technical Skills"]
+        for label, txt in _skills_lines(data["skills"]):
+            lines.append(f"**{label}:** {txt}" if label else txt)
+
+    if data.get("experience"):
+        lines += ["", "## Experience"]
+        for job in data["experience"]:
+            meta = " | ".join(x for x in [job.get("location", ""), job.get("dates", "")] if x)
+            head = f"**{job.get('title','')} — {job.get('company','')}**"
+            if meta:
+                head += f" — {meta}"
+            lines += ["", head]
+            for b in job.get("bullets", []):
+                lines.append(f"- {b}")
+
+    if data.get("projects"):
+        lines += ["", "## Selected Projects"]
+        for pr in data["projects"]:
+            title = pr.get("name", "")
+            if pr.get("subtitle"):
+                title += f" — {pr['subtitle']}"
+            head = f"**{title}**"
+            if pr.get("tech"):
+                head += f" — {pr['tech']}"
+            lines += ["", head]
+            for b in pr.get("bullets", []):
+                lines.append(f"- {b}")
+
+    if data.get("education") or data.get("certifications"):
+        lines += ["", "## Education & Certifications"]
+        for ed in data.get("education", []):
+            tail = ", ".join(x for x in [ed.get("school", ""), ed.get("location", ""), ed.get("dates", "")] if x)
+            lines.append(f"**{ed.get('degree','')}**" + (f" — {tail}" if tail else ""))
+        for c in (data.get("certifications") or []):
+            lines.append(f"- {c}")
+
+    return "\n".join(lines).strip() + "\n"
+
+
 def _save(doc, out):
     if out is None:
         buf = BytesIO()
