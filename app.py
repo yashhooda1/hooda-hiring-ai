@@ -69,6 +69,22 @@ from resume_builder import (extract_text, detect_font,
                             docx_to_pdf, libreoffice_available, to_markdown)
 from resume_generator import generate_tailored_resume, generate_cover_letter
 
+import uuid
+import rate_limit
+
+
+def _client_identity():
+    """Best-effort stable id: forwarded IP if exposed, else a per-session id."""
+    try:
+        fwd = st.context.headers.get("X-Forwarded-For")
+        if fwd:
+            return fwd.split(",")[0].strip()
+    except Exception:
+        pass
+    if "client_id" not in st.session_state:
+        st.session_state["client_id"] = uuid.uuid4().hex
+    return st.session_state["client_id"]
+
 
 st.set_page_config(page_title="HoodaAgents AI Hiring Engine", layout="centered")
 st.title("HoodaAgents AI Hiring Engine")
@@ -231,6 +247,12 @@ if resume is not None:
         )
 
         if st.button("Generate Tailored Documents"):
+            _rl_ok, _rl_msg = rate_limit.check_and_increment(_client_identity())
+            if not _rl_ok:
+                st.error(_rl_msg)
+                st.stop()
+            if _rl_msg:
+                st.caption(_rl_msg)
             try:
                 with st.spinner("Tailoring your resume to the job description..."):
                     tailored = generate_tailored_resume(profile, resume_text, job_desc, provider=provider_key)
