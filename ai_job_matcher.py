@@ -3,6 +3,7 @@ import os
 import json
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
 def score_candidate(profile, job_desc):
 
@@ -26,7 +27,7 @@ Job Description:
 """
 
     response = client.responses.create(
-        model="gpt-4.1-mini",
+        model=MODEL,
         input=prompt
     )
 
