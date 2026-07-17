@@ -37,22 +37,29 @@ You are an expert resume writer optimizing a resume for an ATS and a specific jo
 Rewrite the candidate's resume to align with the JOB DESCRIPTION while staying
 strictly truthful. Rules:
 - Do NOT invent employers, job titles, dates, degrees, certifications, or metrics.
+- PRESERVE EVERY SECTION AND DETAIL present in the source: tagline, work
+  authorization / relocation line, skill groupings, per-job locations, project
+  tech stacks, and ALL certifications. Do not silently drop information.
 - You MAY rephrase bullets, reorder for relevance, and surface keywords from the
   job description that are genuinely supported by the candidate's experience.
-- Keep it concise and achievement-oriented (strong verbs, quantified where the
-  source already provides numbers).
+- Keep it to roughly one page: tighten wording, do not delete sections.
 
-Return ONLY valid JSON with this exact schema:
+Return ONLY valid JSON with this exact schema (use "" or [] for anything the
+source does not contain; keep skills grouped if the source groups them):
 {{
   "name": "string",
-  "contact": "single line: email | phone | location | links",
+  "tagline": "short role line, e.g. 'Data Engineer · AI Engineer' or ''",
+  "contact": "line 1: location | phone | email | citizenship",
+  "links": "line 2: linkedin | github | sites",
+  "work_authorization": "single line about work auth/visa/relocation, or ''",
   "summary": "2-3 sentence professional summary tailored to the job",
-  "skills": ["skill", "..."],
+  "skills": {{"Category": ["skill", "..."]}},
   "experience": [
-    {{"title":"", "company":"", "dates":"", "bullets":["", ""]}}
+    {{"title":"", "company":"", "location":"", "dates":"", "bullets":["", ""]}}
   ],
-  "projects": [{{"name":"", "bullets":["", ""]}}],
-  "education": [{{"degree":"", "school":"", "dates":""}}]
+  "projects": [{{"name":"", "subtitle":"", "tech":"", "bullets":["", ""]}}],
+  "education": [{{"degree":"", "school":"", "location":"", "dates":""}}],
+  "certifications": ["", "..."]
 }}
 
 STRUCTURED PROFILE (from parser):
