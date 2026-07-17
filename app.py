@@ -85,6 +85,15 @@ The system extracts structured candidate information and evaluates job fit using
 resume = st.file_uploader("Upload Resume", type=["pdf", "docx"])
 job_desc = st.text_area("Paste Job Description", height=140)
 
+ai_provider = st.radio(
+    "AI provider",
+    ["OpenAI", "Claude"],
+    horizontal=True,
+    index=0,
+    help="Used for parsing, scoring, and generation. Claude needs ANTHROPIC_API_KEY; OpenAI needs OPENAI_API_KEY.",
+)
+provider_key = "anthropic" if ai_provider == "Claude" else "openai"
+
 if st.button("Load Sample Job Description"):
     job_desc = """
 Data Engineer
@@ -123,7 +132,7 @@ if resume is not None:
 
     try:
         with st.spinner("Analyzing resume with AI..."):
-            profile = extract_resume_intelligence(resume_text)
+            profile = extract_resume_intelligence(resume_text, provider=provider_key)
 
         # If OpenAI returns JSON string convert to dict
         if isinstance(profile, str):
@@ -179,7 +188,7 @@ if resume is not None:
         
         try:
             with st.spinner("Evaluating candidate vs job description..."):
-                result = score_candidate(profile, job_desc)
+                result = score_candidate(profile, job_desc, provider=provider_key)
             if isinstance(result, str):
                 try:
                     result = json.loads(result)
@@ -224,8 +233,8 @@ if resume is not None:
         if st.button("Generate Tailored Documents"):
             try:
                 with st.spinner("Tailoring your resume to the job description..."):
-                    tailored = generate_tailored_resume(profile, resume_text, job_desc)
-                    cover = generate_cover_letter(profile, resume_text, job_desc)
+                    tailored = generate_tailored_resume(profile, resume_text, job_desc, provider=provider_key)
+                    cover = generate_cover_letter(profile, resume_text, job_desc, provider=provider_key)
                     font_name = detect_font(tmp_path)
                     resume_docx = build_resume_docx(tailored, font_name)
                     cover_docx = build_cover_letter_docx(cover, font_name)
