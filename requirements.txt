@@ -1,5 +1,6 @@
 streamlit
 openai
+anthropic
 python-dotenv
 pdfplumber
 python-docx
