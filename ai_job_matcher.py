@@ -1,11 +1,9 @@
-from openai import OpenAI
+import llm
 import os
 import json
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
-def score_candidate(profile, job_desc):
+def score_candidate(profile, job_desc, provider="openai"):
 
     prompt = f"""
 You are an AI technical recruiter.
@@ -26,9 +24,4 @@ Job Description:
 {job_desc}
 """
 
-    response = client.responses.create(
-        model=MODEL,
-        input=prompt
-    )
-
-    return response.output_text
+    return llm.complete(prompt, provider=provider)
