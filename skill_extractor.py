@@ -1,4 +1,4 @@
-from openai import OpenAI
+import llm
 from dotenv import load_dotenv
 import os
 import json
@@ -6,10 +6,8 @@ import re
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
-def extract_resume_intelligence(resume_text):
+def extract_resume_intelligence(resume_text, provider="openai"):
 
     prompt = f"""
 Extract structured resume information.
@@ -28,12 +26,7 @@ Resume:
 {resume_text}
 """
 
-    response = client.responses.create(
-        model=MODEL,
-        input=prompt
-    )
-
-    output = response.output_text
+    output = llm.complete(prompt, provider=provider)
 
     # Clean output in case model adds extra text
     match = re.search(r"\{.*\}", output, re.DOTALL)
