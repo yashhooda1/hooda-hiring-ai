@@ -6,7 +6,7 @@ Anthropic (Messages API). Model IDs come from env vars so they can be bumped
 without a code change:
 
     OPENAI_MODEL      (default: gpt-5.4-mini)
-    ANTHROPIC_MODEL   (default: claude-sonnet-5)
+    ANTHROPIC_MODEL   (default: claude-haiku-4-5-20251001)
 
 Keys:
     OPENAI_API_KEY  for provider="openai"
@@ -16,7 +16,7 @@ Keys:
 import os
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 _MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
 PROVIDERS = ("openai", "anthropic")
@@ -35,6 +35,8 @@ def complete(prompt, provider="openai", system=None):
 
 
 def _openai(prompt, system):
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set in the environment.")
     from openai import OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     kwargs = {"model": OPENAI_MODEL, "input": prompt}
@@ -45,6 +47,10 @@ def _openai(prompt, system):
 
 
 def _anthropic(prompt, system):
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY is not set. Add it to your Railway environment to use Claude."
+        )
     import anthropic
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     kwargs = {
