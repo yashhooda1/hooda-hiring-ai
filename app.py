@@ -66,7 +66,7 @@ import os
 from resume_builder import (extract_text, detect_font,
                             build_resume_docx, build_cover_letter_docx,
                             build_resume_pdf, build_cover_letter_pdf,
-                            docx_to_pdf, libreoffice_available)
+                            docx_to_pdf, libreoffice_available, to_markdown)
 from resume_generator import generate_tailored_resume, generate_cover_letter
 
 
@@ -276,6 +276,13 @@ if resume is not None:
                                    use_container_width=True)
             with st.expander("Preview tailored resume content"):
                 st.json(st.session_state["gen_tailored"])
+
+            st.markdown("**Copy tailored content** (for pasting into LaTeX or another editor):")
+            md = to_markdown(st.session_state["gen_tailored"])
+            st.code(md, language="markdown")
+            st.download_button("Download as Markdown (.md)", data=md.encode("utf-8"),
+                               file_name="tailored_resume.md", mime="text/markdown",
+                               use_container_width=True)
 
 else:
     st.info("Upload a resume PDF to begin.")
