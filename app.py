@@ -37,6 +37,25 @@ st.markdown("""
     </head>
 """, unsafe_allow_html=True)
 
+# --- Brand polish (fonts + buttons). Native theme lives in .streamlit/config.toml ---
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono&display=swap');
+html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+code, pre { font-family: 'Space Mono', monospace; }
+h1 { letter-spacing: -0.02em; font-weight: 700; }
+.stButton > button {
+    background: #4caf50; color: #0d1117; border: none;
+    border-radius: 8px; font-weight: 600; transition: all .15s ease;
+}
+.stButton > button:hover { background: #43a047; transform: translateY(-1px); }
+.stDownloadButton > button {
+    background: #1e293b; color: #4caf50; border: 1px solid #4caf50; border-radius: 8px;
+}
+[data-testid="stFileUploader"] { background: #1e293b; border-radius: 12px; padding: .4rem; }
+</style>
+""", unsafe_allow_html=True)
+
 import json
 
 from resume_parser import parse_resume
