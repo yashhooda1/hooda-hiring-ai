@@ -63,7 +63,10 @@ from skill_extractor import extract_resume_intelligence
 from ai_job_matcher import score_candidate
 
 import os
-from resume_builder import extract_text, detect_font, build_resume_docx, build_cover_letter_docx
+from resume_builder import (extract_text, detect_font,
+                            build_resume_docx, build_cover_letter_docx,
+                            build_resume_pdf, build_cover_letter_pdf,
+                            docx_to_pdf, libreoffice_available)
 from resume_generator import generate_tailored_resume, generate_cover_letter
 
 
@@ -212,28 +215,65 @@ if resume is not None:
         else:
             st.caption("PDF upload - a clean ATS resume is generated in the closest recoverable font.")
 
+        faithful = st.toggle(
+            "Faithful PDF (exact DOCX render via LibreOffice - slower)",
+            value=False,
+            help="On: PDF matches the DOCX exactly. Off: fast, clean ATS PDF.",
+        )
+
         if st.button("Generate Tailored Documents"):
             try:
                 with st.spinner("Tailoring your resume to the job description..."):
                     tailored = generate_tailored_resume(profile, resume_text, job_desc)
                     cover = generate_cover_letter(profile, resume_text, job_desc)
                     font_name = detect_font(tmp_path)
-                    st.session_state["gen_resume"] = build_resume_docx(tailored, font_name)
-                    st.session_state["gen_cover"] = build_cover_letter_docx(cover, font_name)
+                    resume_docx = build_resume_docx(tailored, font_name)
+                    cover_docx = build_cover_letter_docx(cover, font_name)
+
+                    if faithful and libreoffice_available():
+                        try:
+                            resume_pdf = docx_to_pdf(resume_docx)
+                            cover_pdf = docx_to_pdf(cover_docx)
+                            st.session_state["gen_pdf_mode"] = "faithful (LibreOffice)"
+                        except Exception as conv_err:
+                            resume_pdf = build_resume_pdf(tailored, font_name)
+                            cover_pdf = build_cover_letter_pdf(cover, font_name)
+                            st.session_state["gen_pdf_mode"] = f"fast (faithful failed: {conv_err})"
+                    else:
+                        resume_pdf = build_resume_pdf(tailored, font_name)
+                        cover_pdf = build_cover_letter_pdf(cover, font_name)
+                        st.session_state["gen_pdf_mode"] = "fast (fpdf2)"
+
+                    st.session_state["gen_resume"] = resume_docx
+                    st.session_state["gen_cover"] = cover_docx
+                    st.session_state["gen_resume_pdf"] = resume_pdf
+                    st.session_state["gen_cover_pdf"] = cover_pdf
                     st.session_state["gen_font"] = font_name
                     st.session_state["gen_tailored"] = tailored
             except Exception as e:
                 st.error(f"Generation failed: {e}")
 
         if st.session_state.get("gen_resume"):
-            st.success(f"Documents ready. Font used: {st.session_state['gen_font']}")
+            st.success(f"Documents ready. Font: {st.session_state['gen_font']}  -  PDF mode: {st.session_state.get('gen_pdf_mode','fast')}")
             docx_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            st.download_button("Download Tailored Resume (.docx)",
-                               data=st.session_state["gen_resume"],
-                               file_name="tailored_resume.docx", mime=docx_mime)
-            st.download_button("Download Cover Letter (.docx)",
-                               data=st.session_state["gen_cover"],
-                               file_name="cover_letter.docx", mime=docx_mime)
+            r_col1, r_col2 = st.columns(2)
+            with r_col1:
+                st.download_button("Resume (.docx)", data=st.session_state["gen_resume"],
+                                   file_name="tailored_resume.docx", mime=docx_mime,
+                                   use_container_width=True)
+            with r_col2:
+                st.download_button("Resume (.pdf)", data=st.session_state["gen_resume_pdf"],
+                                   file_name="tailored_resume.pdf", mime="application/pdf",
+                                   use_container_width=True)
+            c_col1, c_col2 = st.columns(2)
+            with c_col1:
+                st.download_button("Cover Letter (.docx)", data=st.session_state["gen_cover"],
+                                   file_name="cover_letter.docx", mime=docx_mime,
+                                   use_container_width=True)
+            with c_col2:
+                st.download_button("Cover Letter (.pdf)", data=st.session_state["gen_cover_pdf"],
+                                   file_name="cover_letter.pdf", mime="application/pdf",
+                                   use_container_width=True)
             with st.expander("Preview tailored resume content"):
                 st.json(st.session_state["gen_tailored"])
 
